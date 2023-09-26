@@ -291,4 +291,8 @@ impl VhostUserSlaveReqHandlerMut for DummySlaveReqHandler {
     fn remove_mem_region(&mut self, _region: &VhostUserSingleMemoryRegion) -> Result<()> {
         Ok(())
     }
+
+    fn set_log_base(&self, _log: &VhostUserLog, _file: File) -> Result<()> {
+        Err(Error::InvalidMessage)
+    }
 }

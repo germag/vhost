@@ -6,12 +6,13 @@
 use std::error;
 use std::fs::File;
 use std::io;
+use std::os::fd::AsFd;
 use std::os::unix::io::AsRawFd;
 use std::sync::Arc;
 use std::thread;
 
 use vhost::vhost_user::message::{
-    VhostUserConfigFlags, VhostUserMemoryRegion, VhostUserProtocolFeatures,
+    VhostUserConfigFlags, VhostUserLog, VhostUserMemoryRegion, VhostUserProtocolFeatures,
     VhostUserSingleMemoryRegion, VhostUserVirtioFeatures, VhostUserVringAddrFlags,
     VhostUserVringState,
 };
@@ -21,8 +22,11 @@ use vhost::vhost_user::{
 use virtio_bindings::bindings::virtio_ring::VIRTIO_RING_F_EVENT_IDX;
 use virtio_queue::{Error as VirtQueError, QueueT};
 use vm_memory::bitmap::Bitmap;
-use vm_memory::mmap::NewBitmap;
-use vm_memory::{GuestAddress, GuestAddressSpace, GuestMemoryMmap, GuestRegionMmap};
+use vm_memory::mmap::{BitmapMmap, BitmapReplace, NewBitmap};
+use vm_memory::{
+    GuestAddress, GuestAddressSpace, GuestMemory, GuestMemoryMmap, GuestMemoryRegion,
+    GuestRegionMmap,
+};
 use vmm_sys_util::epoll::EventSet;
 
 use super::backend::VhostUserBackend;
@@ -222,7 +226,7 @@ impl<S, V, B> VhostUserSlaveReqHandlerMut for VhostUserHandler<S, V, B>
 where
     S: VhostUserBackend<V, B>,
     V: VringT<GM<B>>,
-    B: NewBitmap + Clone,
+    B: BitmapReplace + NewBitmap + Clone,
 {
     fn set_owner(&mut self) -> VhostUserResult<()> {
         if self.owned {
@@ -600,6 +604,31 @@ where
         self.mappings
             .retain(|mapping| mapping.gpa_base != region.guest_phys_addr);
 
+        Ok(())
+    }
+
+    fn set_log_base(&self, log: &VhostUserLog, file: File) -> VhostUserResult<()> {
+        let mem = self.atomic_mem.memory();
+
+        let mut bitmaps = Vec::new();
+        for region in mem.iter() {
+            let btimap = B::InnerBitmap::from_file(
+                region.start_addr(),
+                region.len(),
+                file.as_fd(),
+                log.mmap_offset,
+                log.mmap_size,
+            )
+            .map_err(VhostUserError::ReqHandlerError)?;
+
+            bitmaps.push((region.start_addr(), btimap));
+        }
+
+        for (region_start_addr, bitmap) in bitmaps {
+            if let Some(region) = mem.find_region(region_start_addr) {
+                region.bitmap().replace(bitmap);
+            };
+        }
         Ok(())
     }
 }

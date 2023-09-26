@@ -14,7 +14,7 @@ use std::thread;
 
 use vhost::vhost_user::{Error as VhostUserError, Listener, SlaveListener, SlaveReqHandler};
 use vm_memory::bitmap::Bitmap;
-use vm_memory::mmap::NewBitmap;
+use vm_memory::mmap::{BitmapReplace, NewBitmap};
 use vm_memory::{GuestMemoryAtomic, GuestMemoryMmap};
 
 use self::handler::VhostUserHandler;
@@ -83,7 +83,7 @@ impl<S, V, B> VhostUserDaemon<S, V, B>
 where
     S: VhostUserBackend<V, B> + Clone + 'static,
     V: VringT<GM<B>> + Clone + Send + Sync + 'static,
-    B: NewBitmap + Clone + Send + Sync,
+    B: BitmapReplace + NewBitmap + Clone + Send + Sync,
 {
     /// Create the daemon instance, providing the backend implementation of `VhostUserBackend`.
     ///

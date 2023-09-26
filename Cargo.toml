@@ -4,3 +4,7 @@ members = [
     "crates/vhost",
     "crates/vhost-user-backend",
 ]
+
+[patch.crates-io]
+vm-memory = { git = "https://github.com/germag/vm-memory.git", branch = "migration" }
+#vm-memory = { path = "/home/german/Devel/rust-vmm/vm-memory-migration" }
